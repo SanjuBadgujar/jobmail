@@ -9,7 +9,6 @@ from sqlalchemy import func, select
 
 from app.core.config import get_settings
 from app.database import session as dbs
-from app.workers.queue import wake
 from app.models import Campaign, EmailLog, GmailAccount, Recipient, Resume, User
 from app.models.entities import utcnow
 from app.services.gmail import build_mime, credentials_for, send_raw
