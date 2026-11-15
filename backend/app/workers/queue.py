@@ -9,12 +9,14 @@ from sqlalchemy import func, select
 
 from app.core.config import get_settings
 from app.database import session as dbs
+from app.workers.queue import wake
 from app.models import Campaign, EmailLog, GmailAccount, Recipient, Resume, User
 from app.models.entities import utcnow
 from app.services.gmail import build_mime, credentials_for, send_raw
 from app.services.templating import render
 
 logger = logging.getLogger("jobmail.worker")
+wake = threading.Event()  # set by the API when there may be new work
 DAILY_LIMIT = 450  # stay under Gmail's ~500/day consumer quota
 
 
@@ -74,4 +76,8 @@ def worker_loop(stop: threading.Event) -> None:
             wait = process_one()
         except Exception:  # noqa: BLE001
             logger.exception("worker error"); wait = 5
-        stop.wait(2 if wait is None else max(wait, 0.5))
+        if wait is None:  # idle: stop touching the database until the API signals new work
+            wake.wait(timeout=3600)
+            wake.clear()
+            continue
+        stop.wait(max(wait, 0.5))

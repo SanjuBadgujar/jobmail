@@ -29,6 +29,8 @@ def _set(db: Session, user: User, cid: int | None, allowed: set[str], new: str) 
         raise HTTPException(409, f"Cannot change a {c.status} campaign")
     c.status, c.note = new, None
     db.commit()
+    if new == "running":
+        wake.set()
     return {"status": c.status}
 
 
@@ -64,6 +66,7 @@ def retry(log_id: int, db: Session = Depends(get_db), user: User = Depends(get_c
     log.status, log.error_message = "pending", None
     log.campaign.status, log.campaign.note = "running", None
     db.commit()
+    wake.set()
     return {"status": "pending"}
 
 

@@ -54,6 +54,8 @@ def send(data: SendIn, db: Session = Depends(get_db), user: User = Depends(get_c
     camp = Campaign(user_id=user.id, subject=data.subject, body=data.body, status="running" if data.start else "draft")
     camp.logs = [EmailLog(recipient_id=r.id) for r in recs]
     db.add(camp); db.commit()
+    if data.start:
+        wake.set()
     return {"campaignId": camp.id, "total": len(recs)}
 
 
