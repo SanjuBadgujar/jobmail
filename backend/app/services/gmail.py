@@ -15,14 +15,15 @@ SCOPES = ["https://www.googleapis.com/auth/gmail.send", "openid", "https://www.g
 s = get_settings()
 
 
-def build_mime(sender: str, to: str, subject: str, body: str, attachment: Path | None = None, filename: str | None = None) -> str:
+def build_mime(sender: str, to: str, subject: str, body: str, attachment: bytes | Path | None = None, filename: str | None = None) -> str:
     msg = EmailMessage()  # raises ValueError on header injection (newlines)
     msg["To"], msg["From"], msg["Subject"] = to, sender, subject
     msg.set_content(body)
-    if attachment:
-        mime = mimetypes.guess_type(filename or attachment.name)[0] or "application/octet-stream"
-        main, sub = mime.split("/", 1)
-        msg.add_attachment(attachment.read_bytes(), maintype=main, subtype=sub, filename=filename or attachment.name)
+    if attachment is not None:
+        content = attachment if isinstance(attachment, bytes) else attachment.read_bytes()
+        name = filename or (attachment.name if isinstance(attachment, Path) else "attachment")
+        main, sub = (mimetypes.guess_type(name)[0] or "application/octet-stream").split("/", 1)
+        msg.add_attachment(content, maintype=main, subtype=sub, filename=name)
     return base64.urlsafe_b64encode(msg.as_bytes()).decode()
 
 

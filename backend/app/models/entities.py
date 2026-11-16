@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.session import Base
@@ -48,6 +48,14 @@ class Resume(Base):
     storage_path: Mapped[str] = mapped_column(String(500))
     file_size: Mapped[int] = mapped_column(Integer)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ResumeFile(Base):
+    """Resume bytes live in the database so they survive restarts on hosts with temporary disks."""
+    __tablename__ = "resume_files"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    resume_id: Mapped[int] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"), unique=True, index=True)
+    data: Mapped[bytes] = mapped_column(LargeBinary)
 
 
 class Campaign(Base):

@@ -1,14 +1,13 @@
-import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.deps import get_current_user
 from app.database.session import get_db
-from app.models import Resume, User
+from app.models import Resume, ResumeFile, User
 
 router = APIRouter(prefix="/resume", tags=["resume"])
 s = get_settings()
@@ -25,7 +24,8 @@ def _current(db: Session, user: User) -> Resume | None:
 
 def _remove(db: Session, r: Resume | None) -> None:
     if r:
-        Path(r.storage_path).unlink(missing_ok=True); db.delete(r)
+        db.execute(delete(ResumeFile).where(ResumeFile.resume_id == r.id))
+        db.delete(r)
 
 
 @router.post("/upload", status_code=201)
@@ -39,19 +39,20 @@ async def upload(file: UploadFile, db: Session = Depends(get_db), user: User = D
         raise HTTPException(413, f"File too large (max {s.max_upload_mb} MB)")
     if not data.startswith(MAGIC[ext]):
         raise HTTPException(400, "File content does not match its extension")
-    folder = Path(s.upload_dir) / str(user.id)
-    folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"{uuid.uuid4().hex}{ext}"  # random name; never served publicly
-    path.write_bytes(data)
     _remove(db, _current(db, user))
-    r = Resume(user_id=user.id, filename=name[:255], storage_path=str(path), file_size=len(data))
-    db.add(r); db.commit(); db.refresh(r)
+    r = Resume(user_id=user.id, filename=name[:255], storage_path="database", file_size=len(data))
+    db.add(r); db.flush()
+    db.add(ResumeFile(resume_id=r.id, data=data))  # stored privately in the database, never served publicly
+    db.commit(); db.refresh(r)
     return info(r)
 
 
 @router.get("")
 def get_resume(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict | None:
-    return info(_current(db, user))
+    r = _current(db, user)
+    if r and db.scalar(select(ResumeFile.id).where(ResumeFile.resume_id == r.id)) is None:
+        return None  # old record whose file was lost: ask the user to upload again
+    return info(r)
 
 
 @router.delete("", status_code=204)

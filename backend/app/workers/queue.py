@@ -1,7 +1,6 @@
 import logging
 import threading
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 from google.auth.exceptions import RefreshError
 from googleapiclient.errors import HttpError
@@ -9,7 +8,7 @@ from sqlalchemy import func, select
 
 from app.core.config import get_settings
 from app.database import session as dbs
-from app.models import Campaign, EmailLog, GmailAccount, Recipient, Resume, User
+from app.models import Campaign, EmailLog, GmailAccount, Recipient, Resume, ResumeFile, User
 from app.models.entities import utcnow
 from app.services.gmail import build_mime, credentials_for, send_raw
 from app.services.templating import render
@@ -41,8 +40,12 @@ def process_one() -> float | None:
         try:
             rec = db.get(Recipient, log.recipient_id)
             resume = db.scalar(select(Resume).where(Resume.user_id == user.id).order_by(Resume.id.desc()))
-            path = Path(resume.storage_path) if resume else None
-            raw = build_mime(user.email, rec.email, render(camp.subject, rec), render(camp.body, rec), path, resume.filename if resume else None)
+            data = None
+            if resume:
+                data = db.scalar(select(ResumeFile.data).where(ResumeFile.resume_id == resume.id))
+                if data is None:
+                    raise RuntimeError("Resume file is missing. Upload your resume again in Compose, then retry.")
+            raw = build_mime(user.email, rec.email, render(camp.subject, rec), render(camp.body, rec), data, resume.filename if resume else None)
             log.gmail_message_id = send_raw(credentials_for(db, acct), raw)
             log.status, log.sent_at, log.error_message = "sent", utcnow(), None
         except RefreshError:
