@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
 from app.database.session import get_db
+from app.workers.queue import wake
 from app.models import Campaign, EmailLog, User
 
 router = APIRouter(prefix="/queue", tags=["queue"])
