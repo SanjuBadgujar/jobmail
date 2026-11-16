@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     google_client_id: str = ""
     google_client_secret: str = ""
-    google_redirect_uri: str = "http://jobmail-mq9i.onrender.com/api/auth/google/callback"
+    google_redirect_uri: str = "http://localhost:8000/api/auth/google/callback"
 
     default_send_delay_seconds: int = 10
     max_upload_mb: int = 5
